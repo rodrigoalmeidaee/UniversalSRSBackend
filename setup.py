@@ -9,6 +9,7 @@ setuptools.setup(
     install_requires=[
         "pymongo",
         "flask",
+        "flask-cors",
     ],
     entry_points={
         "paste.app_factory": "gevent = universalsrs.uwsgi:main",

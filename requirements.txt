@@ -4,6 +4,6 @@ PasteScript==1.7.5
 flask==0.12.1
 pymongo==3.4.0
 uWSGI==2.0.9
-gevent==1.0.1
+gevent==1.2.1
 
 -e .
