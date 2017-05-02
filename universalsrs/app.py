@@ -36,12 +36,16 @@ def hello():
 @app.route("/decks")
 def list_decks():
     decks = list(app.db.decks.find())
+    now = datetime.datetime.utcnow()
+
     return flask.jsonify([
         {
             "id": str(deck["_id"]),
             "language": deck["language"],
             "title": deck["title"],
             "card_count": app.db.cards.find({"deck_id": deck["_id"]}).count(),
+            "new_card_count": app.db.cards.find({"deck_id": deck["_id"], "is_new": True}).count(),
+            "due_card_count": app.db.cards.find({"deck_id": deck["_id"], "is_new": False, "due": {"$lte": now}}).count(),
             "_links": {
                 "deck": flask.url_for("get_deck", deck_id=deck["_id"], _external=True),
             },
@@ -126,10 +130,10 @@ def get_study_session(deck_id):
 
     new_cards = _block_randomize(
         app.db.cards.find({"deck_id": deck_id, "is_new": True}),
-        block_size=20
+        block_size=2000,
     )
     due_cards = _block_randomize(
-        app.db.cards.find({"deck_id": deck_id, "srs_due": {"$lte": now}}),
+        app.db.cards.find({"deck_id": deck_id, "due": {"$lte": now}}),
         block_size=10,
     )
 
@@ -263,6 +267,19 @@ def _srs_decision_tree(card):
         datetime.timedelta(days=8, hours=-4),
         datetime.timedelta(days=13, hours=-4),
         datetime.timedelta(days=20, hours=-4),
+        datetime.timedelta(days=40, hours=-4),
+        datetime.timedelta(days=80, hours=-4),
+    ] if card["reverse"] else [
+        datetime.timedelta(minutes=10),
+        datetime.timedelta(hours=1),
+        datetime.timedelta(hours=4),
+        datetime.timedelta(days=1, hours=-4),
+        datetime.timedelta(days=2, hours=-4),
+        datetime.timedelta(days=4, hours=-4),
+        datetime.timedelta(days=6, hours=-4),
+        datetime.timedelta(days=9, hours=-4),
+        datetime.timedelta(days=15, hours=-4),
+        datetime.timedelta(days=21, hours=-4),
         datetime.timedelta(days=40, hours=-4),
         datetime.timedelta(days=80, hours=-4),
     ]
