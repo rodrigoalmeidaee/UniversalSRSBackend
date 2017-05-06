@@ -150,7 +150,8 @@ def get_study_session(deck_id):
     return flask.jsonify({
         "new_cards": [with_timings(card) for card in new_cards],
         "due_cards": [with_timings(card) for card in due_cards],
-        "due_distribution": _compute_due_distribution(deck_id)
+        "due_distribution": _compute_due_distribution(deck_id),
+        "graphs": _compute_graphs(deck_id),
     })
 
 
@@ -184,6 +185,64 @@ def _compute_due_distribution(deck_id):
         {"bucket": "1w-2w", "count": app.db.cards.count(due(gt=eod + _7d, lte=eod + _14d))},
         {"bucket": "2w-1m", "count": app.db.cards.count(due(gt=eod + _14d, lte=eod + _30d))},
         {"bucket": "1m+", "count": app.db.cards.count(due(gt=eod + _30d))},
+    ]
+
+
+def _compute_graphs(deck_id):
+    map_fn = bson.Code("""\
+        function() {
+            var date = (new Date(this.timestamp.getTime() - 7 * 3600 * 1000).toISOString().substring(0, 10));
+            if (this.srs_level == null) {
+                emit(date + '::New Cards', {correct: 1, answers: 1});
+            } else {
+                var srsLevelGroup = '?';
+                if (this.srs_level <= 2) {
+                    srsLevelGroup = 'Very Imature Cards (SRS Level 0-2)';
+                } else if (this.srs_level <= 4) {
+                    srsLevelGroup = 'Imature Cards (SRS Level 3-4)';
+                } else if (this.srs_level <= 7) {
+                    srsLevelGroup = 'Almost Mature Cards (SRS Level 5-7)';
+                } else {
+                    srsLevelGroup = 'Mature Cards (SRS Level 8+)';
+                }
+                emit(date + '::Recall Rate/' + srsLevelGroup, {correct: (this.scenario == 'wrong') ? 0 : 1, answers: 1});
+                emit(date + '::Reviewed Cards', {correct: (this.scenario == 'wrong') ? 0 : 1, answers: 1});
+            }
+        }
+    """)
+
+    reduce_fn = bson.Code("""\
+        function(key, values) {
+            return {
+                correct: Array.sum(values.map(function(v) { return v.correct; })),
+                answers: Array.sum(values.map(function(v) { return v.answers; }))
+            };
+        }
+    """)
+
+    stats = app.db.answer_log.map_reduce(map_fn, reduce_fn, {"inline": True}, full_response=True)["results"]
+
+    def push_to_series(series_name, date, value):
+        series.setdefault(series_name, [])
+        series[series_name].append({"x": date, "y": value})
+
+    series = {}
+    for item in stats:
+        date, series_name = item["_id"].split("::")
+        if series_name == "New Cards":
+            push_to_series(series_name, date, item["value"]["answers"])
+        elif series_name == "Reviewed Cards":
+            push_to_series(series_name, date, item["value"]["answers"])
+            push_to_series("Recall Rate/All Cards", date, item["value"]["correct"] / item["value"]["answers"])
+        else:
+            push_to_series(series_name, date, item["value"]["correct"] / item["value"]["answers"])
+
+    return [
+        {
+            "name": series_name,
+            "data": sorted(values, key=lambda v: v["x"]),
+        }
+        for series_name, values in series.iteritems()
     ]
 
 
@@ -293,6 +352,10 @@ def _srs_decision_tree(card):
         right_srs_level = min(card_srs_level + 1, len(SRS_LEVELS) - 1)
         easy_srs_level = min(card_srs_level + 2, len(SRS_LEVELS) - 1)
         wrong_srs_level = max(card_srs_level - 1, 0)
+        time_since_last_saw = NOW - card["last_answered"]
+        if time_since_last_saw > SRS_LEVELS[right_srs_level]:
+            right_srs_level += 1
+            easy_srs_level += 1
 
     possibilities = {
         "right": {
