@@ -3,6 +3,7 @@ from __future__ import division
 import bson
 import datetime
 import flask
+import flask_compress
 import flask_cors
 import json
 import os
@@ -26,6 +27,7 @@ class App(flask.Flask):
 
 app = App(__name__)
 flask_cors.CORS(app)
+flask_compress.Compress(app)
 
 
 @app.route("/")
