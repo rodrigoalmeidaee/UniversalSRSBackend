@@ -356,8 +356,8 @@ def _srs_decision_tree(card):
         wrong_srs_level = max(card_srs_level - 1, 0)
         time_since_last_saw = NOW - card["last_answered"]
         if time_since_last_saw > SRS_LEVELS[right_srs_level]:
-            right_srs_level += 1
-            easy_srs_level += 1
+            right_srs_level = min(right_srs_level + 1, len(SRS_LEVELS) - 1)
+            easy_srs_level = min(easy_srs_level + 1, len(SRS_LEVELS) - 1)
 
     possibilities = {
         "right": {
