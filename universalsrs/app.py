@@ -37,6 +37,10 @@ def hello():
 
 @app.route("/decks")
 def list_decks():
+    password = flask.request.args.get("p")
+    if password != "usrsViCr3t":
+        return flask.jsonify([])
+
     decks = list(app.db.decks.find())
     now = datetime.datetime.utcnow()
 
@@ -45,6 +49,7 @@ def list_decks():
             "id": str(deck["_id"]),
             "language": deck["language"],
             "title": deck["title"],
+            "ordered": deck.get("ordered") or False,
             "card_count": app.db.cards.find({"deck_id": deck["_id"]}).count(),
             "new_card_count": app.db.cards.find({"deck_id": deck["_id"], "is_new": True}).count(),
             "due_card_count": app.db.cards.find({"deck_id": deck["_id"], "is_new": False, "due": {"$lte": now}}).count(),
@@ -65,6 +70,7 @@ def get_deck(deck_id):
         "id": str(deck_id),
         "language": deck["language"],
         "title": deck["title"],
+        "ordered": deck.get("ordered") or False,
         "card_count": len(cards),
         "cards": [
             _card_dto(card)
@@ -128,14 +134,19 @@ def remove_card(deck_id, card_id):
 @app.route("/decks/<deck_id>/study", methods=["GET"])
 def get_study_session(deck_id):
     deck_id = bson.ObjectId(deck_id)
+    deck = app.db.decks.find_one({"_id": deck_id})
     now = datetime.datetime.utcnow()
 
-    new_cards = _block_randomize(
-        app.db.cards.find({"deck_id": deck_id, "is_new": True}),
-        block_size=2000,
-    )
+    cards = list(app.db.cards.find({"deck_id": deck_id}))
+    new_cards = _compute_new_cards(cards)
+
+    if deck.get("ordered"):
+        new_cards = sorted(new_cards, key=lambda card: (-1 if card.get("expedited") else 0, card["ordering"]))
+    else:
+        new_cards = _block_randomize(new_cards, block_size=2000)
+
     due_cards = _block_randomize(
-        app.db.cards.find({"deck_id": deck_id, "due": {"$lte": now}}),
+        [card for card in cards if card.get("due") and card["due"] <= now],
         block_size=10,
     )
 
@@ -152,22 +163,29 @@ def get_study_session(deck_id):
     return flask.jsonify({
         "new_cards": [with_timings(card) for card in new_cards],
         "due_cards": [with_timings(card) for card in due_cards],
-        "due_distribution": _compute_due_distribution(deck_id),
+        "due_distribution": _compute_due_distribution(cards),
         "graphs": _compute_graphs(deck_id),
     })
 
 
-def _compute_due_distribution(deck_id):
+def _compute_new_cards(cards):
+    unlocked_cards = {card.get("srs_level") >= 4 or card["expedited"] for card in cards}
+
+    return [
+        card
+        for card in cards
+        if card["is_new"] and all(dep in unlocked_cards for dep in card.get("depends_on", ()))
+    ]
+
+
+def _compute_due_distribution(cards):
     now = datetime.datetime.utcnow()
     tzoffset = datetime.timedelta(hours=7)
-
-    due = lambda **spec: {"deck_id": deck_id, "is_new": False, "due": {"$" + key: value for key, value in spec.iteritems()}}
 
     eod = (now - tzoffset)
     eod = eod.replace(hour=0, minute=0, second=0, microsecond=0)
     eod += datetime.timedelta(days=1)
     eod += tzoffset
-
 
     _1d = datetime.timedelta(days=1)
     _3d = datetime.timedelta(days=3)
@@ -175,18 +193,24 @@ def _compute_due_distribution(deck_id):
     _14d = datetime.timedelta(days=14)
     _30d = datetime.timedelta(days=30)
 
-    print [now, eod, eod + _1d]
+    def due(lte=datetime.datetime(3000, 1, 1), gt=datetime.datetime(1970, 1, 1)):
+        return sum(
+            1
+            for card in cards
+            if card.get("due")
+            if gt < card["due"] <= lte
+        )
 
     return [
-        {"bucket": "new", "count": app.db.cards.count({"deck_id": deck_id, "is_new": True})},
-        {"bucket": "now", "count": app.db.cards.count(due(lte=now))},
-        {"bucket": "today", "count":  app.db.cards.count(due(gt=now, lte=eod))},
-        {"bucket": "tomorrow", "count": app.db.cards.count(due(gt=eod, lte=eod + _1d))},
-        {"bucket": "2d-3d", "count": app.db.cards.count(due(gt=eod + _1d, lte=eod + _3d))},
-        {"bucket": "4d-1w", "count": app.db.cards.count(due(gt=eod + _3d, lte=eod + _7d))},
-        {"bucket": "1w-2w", "count": app.db.cards.count(due(gt=eod + _7d, lte=eod + _14d))},
-        {"bucket": "2w-1m", "count": app.db.cards.count(due(gt=eod + _14d, lte=eod + _30d))},
-        {"bucket": "1m+", "count": app.db.cards.count(due(gt=eod + _30d))},
+        {"bucket": "new", "count": len(_compute_new_cards(cards))},
+        {"bucket": "now", "count": due(lte=now)},
+        {"bucket": "today", "count":  due(gt=now, lte=eod)},
+        {"bucket": "tomorrow", "count": due(gt=eod, lte=eod + _1d)},
+        {"bucket": "2d-3d", "count": due(gt=eod + _1d, lte=eod + _3d)},
+        {"bucket": "4d-1w", "count": due(gt=eod + _3d, lte=eod + _7d)},
+        {"bucket": "1w-2w", "count": due(gt=eod + _7d, lte=eod + _14d)},
+        {"bucket": "2w-1m", "count": due(gt=eod + _14d, lte=eod + _30d)},
+        {"bucket": "1m+", "count": due(gt=eod + _30d)},
     ]
 
 
@@ -424,10 +448,12 @@ def _srs_decision_tree(card):
 
 
 def _card_dto(card):
-    return dict({
+    base_dto = dict({
         "id": str(card["_id"]),
         "front": card["front"],
         "back": card["back"],
+        "type": card.get("type", "default"),
+        "depends_on": [str(dep) for dep in card.get("depends_on", ())],
         "sound_uri": card.get("sound_uri"),
         "image_uri": card.get("image_uri"),
         "reverse": card.get("reverse", False),
@@ -435,6 +461,13 @@ def _card_dto(card):
         "created_at": card["created_at"],
         "updated_at": card["updated_at"],
     }, **_srs_decision_tree(card)["current_state"])
+
+    if card.get("type", "default").startswith("wanikani"):
+        for key in ("reading_mnemonic", "meaning_mnemonic", "name_mnemonic", "context_sentences", "level"):
+            if key in card:
+                base_dto[key] = card[key]
+
+    return base_dto
 
 
 def _block_randomize(cards, block_size):
