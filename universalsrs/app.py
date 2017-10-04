@@ -137,7 +137,7 @@ def get_study_session(deck_id):
     deck = app.db.decks.find_one({"_id": deck_id})
     now = datetime.datetime.utcnow()
 
-    cards = list(app.db.cards.find({"deck_id": deck_id}))
+    cards = list(app.db.cards.find({"deck_id": deck_id}, sort=[("ordering", 1)]))
     new_cards = _compute_new_cards(cards)
 
     if deck.get("ordered"):
@@ -169,7 +169,7 @@ def get_study_session(deck_id):
 
 
 def _compute_new_cards(cards):
-    unlocked_cards = {card.get("srs_level") >= 4 or card["expedited"] for card in cards}
+    unlocked_cards = {card["_id"] for card in cards if card.get("srs_level") >= 4 or card["expedited"]}
 
     return [
         card
