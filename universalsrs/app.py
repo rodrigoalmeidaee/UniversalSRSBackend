@@ -246,7 +246,13 @@ def _compute_graphs(deck_id):
         }
     """)
 
-    stats = app.db.answer_log.map_reduce(map_fn, reduce_fn, {"inline": True}, full_response=True)["results"]
+    stats = app.db.answer_log.map_reduce(
+        map_fn,
+        reduce_fn,
+        {"inline": True},
+        full_response=True,
+        query={"deck_id": deck_id, "timestamp": {"$gte": datetime.datetime.utcnow() - datetime.timedelta(days=31)}},
+    )["results"]
 
     def push_to_series(series_name, date, value):
         series.setdefault(series_name, [])
