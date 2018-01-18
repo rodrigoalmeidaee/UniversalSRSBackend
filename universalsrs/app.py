@@ -38,10 +38,7 @@ def hello():
 @app.route("/decks")
 def list_decks():
     password = flask.request.args.get("p")
-    if password != "usrsViCr3t":
-        return flask.jsonify([])
-
-    decks = list(app.db.decks.find())
+    decks = list(app.db.decks.find({"user_id": password}))
     now = datetime.datetime.utcnow()
 
     return flask.jsonify([
