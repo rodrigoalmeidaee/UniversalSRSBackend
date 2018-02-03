@@ -91,6 +91,7 @@ def add_card(deck_id):
         "is_new": True,
         "created_at": datetime.datetime.utcnow(),
         "updated_at": datetime.datetime.utcnow(),
+        "expedited": False,
     })
 
     return _updated_card(deck_id, card_id)
