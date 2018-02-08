@@ -199,7 +199,7 @@ def _compute_due_distribution(cards):
             if gt < card["due"] <= lte
         )
 
-    return [
+    buckets = [
         {"bucket": "new", "count": len(_compute_new_cards(cards))},
         {"bucket": "now", "count": due(lte=now)},
         {"bucket": "today", "count":  due(gt=now, lte=eod)},
@@ -210,6 +210,12 @@ def _compute_due_distribution(cards):
         {"bucket": "2w-1m", "count": due(gt=eod + _14d, lte=eod + _30d)},
         {"bucket": "1m+", "count": due(gt=eod + _30d)},
     ]
+
+    expedited = sum(1 for c in cards if c["is_new"] and c.get("expedited"))
+    if expedited:
+        buckets.insert(1, {"bucket": "expedited", "count": expedited})
+        buckets[0]["count"] -= buckets[1]["count"]
+    return buckets
 
 
 def _compute_graphs(deck_id):
