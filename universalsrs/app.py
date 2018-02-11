@@ -352,31 +352,37 @@ def _updated_card(deck_id, card_id):
 def _srs_decision_tree(card):
     NOW = datetime.datetime.utcnow()
     SRS_LEVELS = [
-        datetime.timedelta(minutes=10),
-        datetime.timedelta(hours=1),
-        datetime.timedelta(hours=4),
-        datetime.timedelta(days=1, hours=-4),
-        datetime.timedelta(days=2, hours=-4),
-        datetime.timedelta(days=3, hours=-4),
-        datetime.timedelta(days=5, hours=-4),
-        datetime.timedelta(days=8, hours=-4),
-        datetime.timedelta(days=13, hours=-4),
-        datetime.timedelta(days=20, hours=-4),
-        datetime.timedelta(days=40, hours=-4),
-        datetime.timedelta(days=80, hours=-4),
+        datetime.timedelta(minutes=10),         # 0
+        datetime.timedelta(hours=1),            # 1
+        datetime.timedelta(hours=4),            # 2
+        datetime.timedelta(days=1, hours=-4),   # 3
+        datetime.timedelta(days=2, hours=-4),   # 4
+        datetime.timedelta(days=3, hours=-4),   # 5
+        datetime.timedelta(days=5, hours=-4),   # 6
+        datetime.timedelta(days=8, hours=-4),   # 7
+        datetime.timedelta(days=13, hours=-4),  # 8
+        datetime.timedelta(days=20, hours=-4),  # 9
+        datetime.timedelta(days=40, hours=-4),  # 10
+        datetime.timedelta(days=80, hours=-4),  # 11
+        datetime.timedelta(days=100, hours=-4), # 12
+        datetime.timedelta(days=180, hours=-4), # 13
+        datetime.timedelta(days=365, hours=-4), # 14
     ] if card["reverse"] else [
-        datetime.timedelta(minutes=10),
-        datetime.timedelta(hours=1),
-        datetime.timedelta(hours=4),
-        datetime.timedelta(days=1, hours=-4),
-        datetime.timedelta(days=2, hours=-4),
-        datetime.timedelta(days=4, hours=-4),
-        datetime.timedelta(days=6, hours=-4),
-        datetime.timedelta(days=9, hours=-4),
-        datetime.timedelta(days=15, hours=-4),
-        datetime.timedelta(days=21, hours=-4),
-        datetime.timedelta(days=40, hours=-4),
-        datetime.timedelta(days=80, hours=-4),
+        datetime.timedelta(minutes=10),         # 0
+        datetime.timedelta(hours=1),            # 1
+        datetime.timedelta(hours=4),            # 2
+        datetime.timedelta(days=1, hours=-4),   # 3
+        datetime.timedelta(days=2, hours=-4),   # 4
+        datetime.timedelta(days=4, hours=-4),   # 5
+        datetime.timedelta(days=6, hours=-4),   # 6
+        datetime.timedelta(days=9, hours=-4),   # 7
+        datetime.timedelta(days=15, hours=-4),  # 8
+        datetime.timedelta(days=21, hours=-4),  # 9
+        datetime.timedelta(days=40, hours=-4),  # 10
+        datetime.timedelta(days=80, hours=-4),  # 11
+        datetime.timedelta(days=100, hours=-4), # 12
+        datetime.timedelta(days=180, hours=-4), # 13
+        datetime.timedelta(days=365, hours=-4), # 14
     ]
     SRS_INITIAL_LEVEL = 2
 
@@ -387,7 +393,10 @@ def _srs_decision_tree(card):
         card_srs_level = card["srs_level"]
         right_srs_level = min(card_srs_level + 1, len(SRS_LEVELS) - 1)
         easy_srs_level = min(card_srs_level + 2, len(SRS_LEVELS) - 1)
-        wrong_srs_level = max(card_srs_level - 1, 0)
+        if card_srs_level >= 7:
+            wrong_srs_level = card_srs_level - 2
+        else:
+            wrong_srs_level = max(card_srs_level - 1, 0)
         time_since_last_saw = NOW - card["last_answered"]
         if time_since_last_saw > SRS_LEVELS[right_srs_level]:
             right_srs_level = min(right_srs_level + 1, len(SRS_LEVELS) - 1)
