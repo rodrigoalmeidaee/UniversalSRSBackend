@@ -255,7 +255,7 @@ def _compute_graphs(deck_id):
         reduce_fn,
         {"inline": True},
         full_response=True,
-        query={"deck_id": deck_id, "timestamp": {"$gte": datetime.datetime.utcnow() - datetime.timedelta(days=31)}},
+        query={"deck_id": deck_id, "timestamp": {"$gte": datetime.datetime.utcnow() - datetime.timedelta(days=90)}},
     )["results"]
 
     def push_to_series(series_name, date, value):
