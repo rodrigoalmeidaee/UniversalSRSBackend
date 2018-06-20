@@ -1,6 +1,7 @@
 from __future__ import division
 
 import bson
+import copy
 import datetime
 import flask
 import flask_compress
@@ -162,6 +163,7 @@ def get_study_session(deck_id):
         "new_cards": [with_timings(card) for card in new_cards],
         "due_cards": [with_timings(card) for card in due_cards],
         "due_distribution": _compute_due_distribution(cards),
+        "workload_prediction": _compute_workload(cards),
         "graphs": _compute_graphs(deck_id),
     })
 
@@ -216,6 +218,29 @@ def _compute_due_distribution(cards):
         buckets.insert(1, {"bucket": "expedited", "count": expedited})
         buckets[0]["count"] -= buckets[1]["count"]
     return buckets
+
+
+def _compute_workload(cards):
+    cards = copy.copy(cards)
+    now = datetime.datetime.utcnow()
+    tzoffset = datetime.timedelta(hours=4)
+
+    eod = (now - tzoffset)
+    eod = eod.replace(hour=0, minute=0, second=0, microsecond=0)
+    eod += datetime.timedelta(days=1)
+    eod += tzoffset
+
+    studied_per_day = []
+    for i in xrange(7):
+        studied_this_day = 0
+        for j, card in enumerate(cards):
+            if card.get("due") and card["due"] <= eod:
+                studied_this_day += 1
+                cards[j] = dict(card, due=_srs_decision_tree(card, now=eod)["right"]["updates"]["$set"]["due"])
+        studied_per_day.append({"x": (eod - datetime.timedelta(days=1)).isoformat()[0:10], "y": studied_this_day})
+        eod += datetime.timedelta(days=1)
+
+    return studied_per_day
 
 
 def _compute_graphs(deck_id):
@@ -349,8 +374,8 @@ def _updated_card(deck_id, card_id):
     return flask.jsonify(_card_dto(card))
 
 
-def _srs_decision_tree(card):
-    NOW = datetime.datetime.utcnow()
+def _srs_decision_tree(card, now=None):
+    NOW = now or datetime.datetime.utcnow()
     SRS_LEVELS = [
         datetime.timedelta(minutes=10),         # 0
         datetime.timedelta(hours=1),            # 1
