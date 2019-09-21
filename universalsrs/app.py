@@ -492,13 +492,17 @@ def _srs_decision_tree(card, now=None):
 
 
 def _card_dto(card):
+    sound_uri = card.get("sound_uri")
+    if not sound_uri and card.get("sound_uris"):
+        sound_uri = card["sound_uris"][0]["uri"]
+
     base_dto = dict({
         "id": str(card["_id"]),
         "front": card["front"],
         "back": card["back"],
         "type": card.get("type", "default"),
         "depends_on": [str(dep) for dep in card.get("depends_on", ())],
-        "sound_uri": card.get("sound_uri"),
+        "sound_uri": sound_uri,
         "image_uri": card.get("image_uri"),
         "reverse": card.get("reverse", False),
         "ordering": card.get("ordering", 0),
@@ -507,7 +511,7 @@ def _card_dto(card):
     }, **_srs_decision_tree(card)["current_state"])
 
     if card.get("type", "default").startswith("wanikani"):
-        for key in ("reading_mnemonic", "meaning_mnemonic", "name_mnemonic", "context_sentences", "level"):
+        for key in ("reading_mnemonic", "meaning_mnemonic", "name_mnemonic", "context_sentences", "level", "sound_uris"):
             if key in card:
                 base_dto[key] = card[key]
 
