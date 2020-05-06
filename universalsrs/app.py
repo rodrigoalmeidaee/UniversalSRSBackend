@@ -380,45 +380,47 @@ def _srs_decision_tree(card, now=None):
         datetime.timedelta(minutes=10),         # 0
         datetime.timedelta(hours=1),            # 1
         datetime.timedelta(hours=4),            # 2
-        datetime.timedelta(days=1, hours=-4),   # 3
-        datetime.timedelta(days=2, hours=-4),   # 4
-        datetime.timedelta(days=3, hours=-4),   # 5
-        datetime.timedelta(days=5, hours=-4),   # 6
-        datetime.timedelta(days=8, hours=-4),   # 7
-        datetime.timedelta(days=13, hours=-4),  # 8
-        datetime.timedelta(days=20, hours=-4),  # 9
-        datetime.timedelta(days=40, hours=-4),  # 10
-        datetime.timedelta(days=80, hours=-4),  # 11
-        datetime.timedelta(days=100, hours=-4), # 12
-        datetime.timedelta(days=180, hours=-4), # 13
-        datetime.timedelta(days=365, hours=-4), # 14
+        datetime.timedelta(days=1),             # 3
+        datetime.timedelta(days=2),             # 4
+        datetime.timedelta(days=3),             # 5
+        datetime.timedelta(days=5),             # 6
+        datetime.timedelta(days=8),             # 7
+        datetime.timedelta(days=13),            # 8
+        datetime.timedelta(days=20),            # 9
+        datetime.timedelta(days=40),            # 10
+        datetime.timedelta(days=80),            # 11
+        datetime.timedelta(days=100),           # 12
+        datetime.timedelta(days=180),           # 13
+        datetime.timedelta(days=365),           # 14
     ] if card["reverse"] else [
         datetime.timedelta(minutes=10),         # 0
         datetime.timedelta(hours=1),            # 1
         datetime.timedelta(hours=4),            # 2
-        datetime.timedelta(days=1, hours=-4),   # 3
-        datetime.timedelta(days=2, hours=-4),   # 4
-        datetime.timedelta(days=4, hours=-4),   # 5
-        datetime.timedelta(days=6, hours=-4),   # 6
-        datetime.timedelta(days=9, hours=-4),   # 7
-        datetime.timedelta(days=15, hours=-4),  # 8
-        datetime.timedelta(days=21, hours=-4),  # 9
-        datetime.timedelta(days=40, hours=-4),  # 10
-        datetime.timedelta(days=80, hours=-4),  # 11
-        datetime.timedelta(days=100, hours=-4), # 12
-        datetime.timedelta(days=180, hours=-4), # 13
-        datetime.timedelta(days=365, hours=-4), # 14
+        datetime.timedelta(days=1),             # 3
+        datetime.timedelta(days=2),             # 4
+        datetime.timedelta(days=4),             # 5
+        datetime.timedelta(days=6),             # 6
+        datetime.timedelta(days=9),             # 7
+        datetime.timedelta(days=15),            # 8
+        datetime.timedelta(days=21),            # 9
+        datetime.timedelta(days=40),            # 10
+        datetime.timedelta(days=80),            # 11
+        datetime.timedelta(days=100),           # 12
+        datetime.timedelta(days=180),           # 13
+        datetime.timedelta(days=365),           # 14
     ]
-    SRS_INITIAL_LEVEL = 2
+    SRS_INITIAL_LEVEL = 3
 
     if card["is_new"]:
-        right_srs_level = 2
-        easy_srs_level = 3
+        right_srs_level = 3
+        easy_srs_level = 4
     else:
         card_srs_level = card["srs_level"]
         right_srs_level = min(card_srs_level + 1, len(SRS_LEVELS) - 1)
         easy_srs_level = min(card_srs_level + 2, len(SRS_LEVELS) - 1)
-        if card_srs_level >= 7:
+        if card_srs_level >= 11:
+            wrong_srs_level = card_srs_level - 3
+        elif card_srs_level >= 7:
             wrong_srs_level = card_srs_level - 2
         else:
             wrong_srs_level = max(card_srs_level - 1, 0)
@@ -427,12 +429,28 @@ def _srs_decision_tree(card, now=None):
             right_srs_level = min(right_srs_level + 1, len(SRS_LEVELS) - 1)
             easy_srs_level = min(easy_srs_level + 1, len(SRS_LEVELS) - 1)
 
+    def adjust_hour(timestamp):
+        if NOW.hour < 7:
+            eod_today = NOW.replace(hour=7, minute=0, second=0, microsecond=0)
+        else:
+            eod_today = NOW.replace(hour=7, minute=0, second=0, microsecond=0)
+            eod_today += datetime.timedelta(days=1)
+
+        if timestamp < eod_today:
+            return timestamp
+
+        adjusted = timestamp.replace(hour=7, minute=1, second=0, microsecond=0)
+        if adjusted > timestamp:
+            return adjusted - datetime.timedelta(days=1)
+
+        return adjusted
+
     possibilities = {
         "right": {
             "interval": SRS_LEVELS[right_srs_level],
             "updates": {
                 "$set": {
-                    "due": NOW + SRS_LEVELS[right_srs_level],
+                    "due": adjust_hour(NOW + SRS_LEVELS[right_srs_level]),
                     "srs_level": right_srs_level,
                     "is_new": False,
                     "hit_ratio": (card.get("hits", 0) + 1) / (card.get("answers", 0) + 1),
