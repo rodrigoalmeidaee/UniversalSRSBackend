@@ -466,7 +466,7 @@ def _srs_decision_tree(card, now=None):
             "interval": SRS_LEVELS[easy_srs_level],
             "updates": {
                 "$set": {
-                    "due": NOW + SRS_LEVELS[easy_srs_level],
+                    "due": adjust_hour(NOW + SRS_LEVELS[easy_srs_level]),
                     "srs_level": easy_srs_level,
                     "is_new": False,
                     "hit_ratio": (card.get("hits", 0) + 1) / (card.get("answers", 0) + 1),
@@ -494,7 +494,7 @@ def _srs_decision_tree(card, now=None):
             "interval": SRS_LEVELS[wrong_srs_level],
             "updates": {
                 "$set": {
-                    "due": NOW + SRS_LEVELS[wrong_srs_level],
+                    "due": adjust_hour(NOW + SRS_LEVELS[wrong_srs_level]),
                     "srs_level": wrong_srs_level,
                     "is_new": False,
                     "hit_ratio": (card.get("hits", 0)) / (card.get("answers", 0) + 1),
