@@ -1,4 +1,4 @@
-from __future__ import division
+
 
 import bson
 import copy
@@ -20,7 +20,7 @@ class App(flask.Flask):
         return self._db
 
     def _get_db(self):
-        print "Connecting to the database"
+        print("Connecting to the database")
         import pymongo
         db = pymongo.MongoClient(os.environ["MONGODB_URI"]).get_default_database()
         return db
@@ -115,7 +115,7 @@ def update_card(deck_id, card_id):
         spec,
         {"$set": {
             k: v
-            for k, v in request_json.iteritems()
+            for k, v in request_json.items()
             if k in ("front", "back", "sound_uri", "image_uri", "reverse", "updated_at")
         }}
     )
@@ -152,7 +152,7 @@ def get_study_session(deck_id):
     def with_timings(card):
         dto = _card_dto(card)
 
-        for scenario, info in _srs_decision_tree(card).iteritems():
+        for scenario, info in _srs_decision_tree(card).items():
             if scenario == "current_state":
                 continue
             dto["interval_if_" + scenario] = info["interval"].total_seconds()
@@ -231,7 +231,7 @@ def _compute_workload(cards):
     eod += tzoffset
 
     studied_per_day = []
-    for i in xrange(7):
+    for i in range(7):
         studied_this_day = 0
         for j, card in enumerate(cards):
             if card.get("due") and card["due"] <= eod:
@@ -304,7 +304,7 @@ def _compute_graphs(deck_id):
             "name": series_name,
             "data": sorted(values, key=lambda v: v["x"]),
         }
-        for series_name, values in series.iteritems()
+        for series_name, values in series.items()
     ]
 
 
@@ -552,7 +552,7 @@ def _block_randomize(cards, block_size):
     cards = sorted(cards, key=due_date_violation, reverse=True)
     sorted_cards = []
 
-    for block_start in xrange(0, len(cards), block_size):
+    for block_start in range(0, len(cards), block_size):
         block = cards[block_start:block_start + block_size]
         random.shuffle(block)
         sorted_cards += block
