@@ -9,6 +9,7 @@ import flask_cors
 import json
 import os
 import random
+import pymongo
 
 
 class App(flask.Flask):
@@ -336,8 +337,8 @@ def post_study_answers():
         })
     }
 
-    cards_bulk = app.db.cards.initialize_ordered_bulk_op()
-    log_bulk = app.db.answer_log.initialize_unordered_bulk_op()
+    cards_bulk = []
+    log_bulk = []
 
     for answer in sorted(parsed_answers, key=lambda ans: ans["timestamp"]):
         card = cards_by_id[answer["card_id"]]
@@ -347,17 +348,17 @@ def post_study_answers():
         if not updates:
             continue
 
-        cards_bulk.find({"_id": card["_id"]}).update(updates)
-        log_bulk.insert(dict({
+        cards_bulk.append(pymongo.UpdateOne({"_id": card["_id"]}, updates))
+        log_bulk.append(pymongo.InsertOne(dict({
             "session_id": session_id,
             "deck_id": card["deck_id"],
             "card_id": card["_id"],
             "scenario": answer["scenario"],
             "timestamp": answer["timestamp"],
-        }, **decision_tree["current_state"]))
+        }, **decision_tree["current_state"])))
 
-    cards_bulk.execute()
-    log_bulk.execute()
+    app.db.cards.bulk_write(cards_bulk)
+    app.db.answer_log.bulk_write(log_bulk, ordered=False)
 
     return ('', 204)
 
