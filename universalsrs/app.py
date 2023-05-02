@@ -169,7 +169,7 @@ def get_study_session(deck_id):
 
 
 def _compute_new_cards(cards):
-    unlocked_cards = {card["_id"] for card in cards if card.get("srs_level") >= 4 or card["expedited"]}
+    unlocked_cards = {card["_id"] for card in cards if card.get("srs_level", 0) >= 4 or card["expedited"]}
 
     return [
         card
