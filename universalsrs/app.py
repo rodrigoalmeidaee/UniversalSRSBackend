@@ -48,9 +48,9 @@ def list_decks():
             "language": deck["language"],
             "title": deck["title"],
             "ordered": deck.get("ordered") or False,
-            "card_count": app.db.cards.find({"deck_id": deck["_id"]}).count(),
-            "new_card_count": app.db.cards.find({"deck_id": deck["_id"], "is_new": True}).count(),
-            "due_card_count": app.db.cards.find({"deck_id": deck["_id"], "is_new": False, "due": {"$lte": now}}).count(),
+            "card_count": app.db.cards.count_documents({"deck_id": deck["_id"]}),
+            "new_card_count": app.db.cards.count_documents({"deck_id": deck["_id"], "is_new": True}),
+            "due_card_count": app.db.cards.count_documents({"deck_id": deck["_id"], "is_new": False, "due": {"$lte": now}}),
             "_links": {
                 "deck": flask.url_for("get_deck", deck_id=deck["_id"], _external=True),
             },
@@ -111,7 +111,7 @@ def update_card(deck_id, card_id):
     request_json = json.loads(flask.request.data)
     request_json["updated_at"] = datetime.datetime.utcnow()
 
-    app.db.cards.update(
+    app.db.cards.update_one(
         spec,
         {"$set": {
             k: v
@@ -126,7 +126,7 @@ def update_card(deck_id, card_id):
 @app.route("/decks/<deck_id>/cards/<card_id>", methods=["DELETE"])
 def remove_card(deck_id, card_id):
     spec = {"_id": bson.ObjectId(card_id), "deck_id": bson.ObjectId(deck_id)}
-    app.db.cards.remove(spec)
+    app.db.cards.remove_one(spec)
     return ('', 204)
 
 

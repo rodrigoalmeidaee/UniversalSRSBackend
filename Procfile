@@ -1,1 +1,1 @@
-web: uwsgi --ini-paste-logged app.ini 
+web: uwsgi --ini app.ini 
